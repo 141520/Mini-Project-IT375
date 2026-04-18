@@ -14,9 +14,9 @@ def _ocr_page(page) -> str:
         import pytesseract
         from PIL import Image
         import io
-        pix = page.get_pixmap(dpi=100)  # low DPI = less RAM
+        pix = page.get_pixmap(dpi=72)  # very low DPI = minimal RAM
         img = Image.open(io.BytesIO(pix.tobytes("png")))
-        text = pytesseract.image_to_string(img, lang="eng", config="--psm 3 --oem 1")
+        text = pytesseract.image_to_string(img, lang="eng", config="--psm 6 --oem 0")  # oem 0 = legacy, faster/less RAM
         return text or ""
     except Exception as e:
         print(f"[pdf_parser] OCR failed on page: {e}")
