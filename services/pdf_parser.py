@@ -9,14 +9,14 @@ except ImportError:
 
 
 def _ocr_page(page) -> str:
-    """OCR a single PyMuPDF page using pytesseract as fallback."""
+    """OCR a single PyMuPDF page using pytesseract as fallback (low DPI to save RAM)."""
     try:
         import pytesseract
         from PIL import Image
         import io
-        pix = page.get_pixmap(dpi=200)
+        pix = page.get_pixmap(dpi=100)  # low DPI = less RAM
         img = Image.open(io.BytesIO(pix.tobytes("png")))
-        text = pytesseract.image_to_string(img, lang="eng+tha", config="--psm 3")
+        text = pytesseract.image_to_string(img, lang="eng", config="--psm 3 --oem 1")
         return text or ""
     except Exception as e:
         print(f"[pdf_parser] OCR failed on page: {e}")

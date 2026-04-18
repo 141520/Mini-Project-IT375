@@ -9,7 +9,6 @@ python-dotenv
 pydantic-settings
 pymupdf
 pytesseract
-pdf2image
 google-genai
 scikit-learn
 numpy
