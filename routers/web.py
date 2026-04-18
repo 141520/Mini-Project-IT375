@@ -76,7 +76,7 @@ def chat_page(game_id: int, request: Request, user=Depends(get_optional_user), d
         return RedirectResponse("/login")
     game = db.get(BoardGame, game_id)
     if not game:
-        raise HTTPException(status_code=404, detail="Game not found")
+        return RedirectResponse("/dashboard")
     return templates.TemplateResponse(request, "chat.html", _ctx(user, game=game))
 
 

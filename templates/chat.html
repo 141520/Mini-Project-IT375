@@ -64,44 +64,10 @@ function addBubble(role, content, citations=[], msgId=null) {
   const div = document.createElement('div');
   div.className = 'flex ' + (isUser ? 'justify-end' : 'justify-start');
 
-  const citesHtml = citations.length ? `
-    <div class="mt-2 text-xs opacity-80 border-t ${isUser ? 'border-white/20' : 'border-amber-200 dark:border-slate-600'} pt-2">
-      📖 อ้างอิง: ${citations.map(c => `<span class="font-semibold">หน้า ${c.page}</span>`).join(', ')}
-    </div>` : '';
-
-  const actionsHtml = !isUser ? `
-    <div class="flex items-center gap-1 mt-2 opacity-60 hover:opacity-100 transition">
-      <button class="rate-btn text-xs p-1 rounded hover:bg-emerald-100 dark:hover:bg-slate-700" data-rate="1" title="ดี">👍</button>
-      <button class="rate-btn text-xs p-1 rounded hover:bg-rose-100 dark:hover:bg-slate-700" data-rate="-1" title="ไม่ดี">👎</button>
-      <button class="copy-btn text-xs p-1 rounded hover:bg-amber-100 dark:hover:bg-slate-700" title="คัดลอก">📋</button>
-    </div>` : '';
-
   div.innerHTML = `
     <div class="max-w-[85%] ${isUser ? 'chat-user' : 'chat-ai dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100'} px-4 py-3 shadow-sm">
       <div class="whitespace-pre-wrap leading-relaxed">${escapeHtml(content)}</div>
-      ${citesHtml}
-      ${actionsHtml}
     </div>`;
-
-  if (!isUser) {
-    const copyBtn = div.querySelector('.copy-btn');
-    copyBtn?.addEventListener('click', () => {
-      navigator.clipboard.writeText(content);
-      copyBtn.textContent = '✓';
-      setTimeout(() => copyBtn.textContent = '📋', 1200);
-    });
-    div.querySelectorAll('.rate-btn').forEach(b => {
-      b.addEventListener('click', async () => {
-        if (!msgId) return;
-        await fetch(`/api/v1/chat/messages/${msgId}/rate`, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
-          body: JSON.stringify({rating: parseInt(b.dataset.rate)})
-        }).catch(() => {});
-        b.classList.add('bg-amber-200', 'dark:bg-amber-600');
-      });
-    });
-  }
 
   msgsEl.appendChild(div);
   msgsEl.scrollTop = msgsEl.scrollHeight;
