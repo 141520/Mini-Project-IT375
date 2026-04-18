@@ -55,7 +55,24 @@ def index_game(game_id: int, admin: User = Depends(require_admin), db: Session =
     if not game.pdf_path or not os.path.exists(game.pdf_path):
         raise HTTPException(status_code=400, detail="PDF not uploaded")
 
-    chunks = pdf_parser.chunk_pdf(game.pdf_path)
+    try:
+        chunks = pdf_parser.chunk_pdf(game.pdf_path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF parse error: {e}")
+
+    if not chunks:
+        # Try to diagnose why
+        try:
+            from services.pdf_parser import extract_pages
+            raw_pages = extract_pages(game.pdf_path)
+            if not raw_pages:
+                raise HTTPException(status_code=422, detail="PDF ไม่มีข้อความ (อาจเป็น PDF สแกน/รูปภาพ) — ต้องใช้ PDF ที่มีข้อความจริง")
+            raise HTTPException(status_code=422, detail=f"PDF มี {len(raw_pages)} หน้าแต่ chunk ไม่ได้ — ลองอัปโหลดใหม่")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"PDF อ่านได้แต่ chunk ไม่สำเร็จ: {e}")
+
     count = vector_store.index_chunks(game.id, chunks)
     pages = len({c["page"] for c in chunks})
 

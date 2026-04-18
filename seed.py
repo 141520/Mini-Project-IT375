@@ -1,40 +1,44 @@
-"""Seed initial admin + sample board games."""
+"""Seed initial admin user. Safe to run multiple times (idempotent)."""
 from database import SessionLocal, engine, Base
 from models import User, BoardGame
 from auth import hash_password
 
-
-def reset():
-    print("Dropping all tables...")
-    Base.metadata.drop_all(bind=engine)
-    print("Creating tables...")
-    Base.metadata.create_all(bind=engine)
+# Create tables if not exist (never drops)
+Base.metadata.create_all(bind=engine)
 
 
 def run():
     db = SessionLocal()
     try:
-        db.add_all([
-            User(username="admin", email="admin@example.com",
-                 password_hash=hash_password("admin1234"), role="admin"),
-            User(username="demo", email="demo@example.com",
-                 password_hash=hash_password("demo1234"), role="user"),
-        ])
-        db.commit()
+        # Only insert if not already exists
+        if not db.query(User).filter_by(username="admin").first():
+            db.add(User(
+                username="admin",
+                email="admin@example.com",
+                password_hash=hash_password("admin1234"),
+                role="admin",
+            ))
+            print("✅ Created admin user")
+        else:
+            print("ℹ️  admin user already exists — skipped")
 
-        db.add_all([
-            BoardGame(name="Catan", description="เกมสร้างอาณานิคมบนเกาะ Catan", language="th"),
-            BoardGame(name="Ticket to Ride", description="สร้างเส้นทางรถไฟข้ามทวีป", language="th"),
-            BoardGame(name="Carcassonne", description="วางแผ่นกระเบื้องสร้างเมือง", language="th"),
-            BoardGame(name="Wingspan", description="เกมสะสมนกและระบบนิเวศ", language="th"),
-        ])
-        db.commit()
+        if not db.query(User).filter_by(username="demo").first():
+            db.add(User(
+                username="demo",
+                email="demo@example.com",
+                password_hash=hash_password("demo1234"),
+                role="user",
+            ))
+            print("✅ Created demo user")
 
-        print("✅ Seeded: admin/admin1234, demo/demo1234 + 4 games")
+        db.commit()
+        print("✅ Seed complete")
+    except Exception as e:
+        db.rollback()
+        print(f"⚠️  Seed error (non-fatal): {e}")
     finally:
         db.close()
 
 
 if __name__ == "__main__":
-    reset()
     run()
