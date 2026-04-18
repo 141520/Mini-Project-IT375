@@ -20,22 +20,6 @@
     พร้อม<span class="font-semibold text-amber-700">อ้างอิงจาก Rulebook</span> ทุกคำตอบ
   </p>
 
-  <!-- SEARCH -->
-  <form method="get" action="/" class="max-w-xl mx-auto mb-6">
-    <div class="flex items-center bg-white rounded-2xl shadow-lg border border-amber-200 overflow-hidden focus-within:ring-2 focus-within:ring-amber-400">
-      <span class="pl-4 text-slate-400">🔍</span>
-      <input type="text" name="q" value="{{ q or '' }}"
-             placeholder="ค้นหาบอร์ดเกม เช่น Catan, อูโน่, ผู้ก่อตั้ง..."
-             class="flex-1 px-3 py-3 outline-none text-slate-800 placeholder-slate-400 bg-transparent">
-      {% if q %}
-        <a href="/" class="text-xs text-slate-500 hover:text-slate-700 px-2">ล้าง</a>
-      {% endif %}
-      <button class="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold px-6 py-3 transition">
-        ค้นหา
-      </button>
-    </div>
-  </form>
-
   <div class="flex justify-center gap-3 flex-wrap">
     {% if current_user %}
       <a href="/dashboard" class="bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl shadow-lg font-medium transition">🎯 ไปที่ Dashboard</a>

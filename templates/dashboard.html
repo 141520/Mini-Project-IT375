@@ -5,17 +5,6 @@
   <p class="text-slate-600 dark:text-slate-400">เลือกบอร์ดเกมเพื่อเริ่มถามคำถาม หรือดูประวัติการสนทนา</p>
 </div>
 
-<!-- Multi-game ask -->
-<section class="bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 rounded-2xl shadow-lg p-6 mb-6 text-white">
-  <h2 class="text-xl font-bold mb-1">🔮 ถาม AI ข้ามทุกเกม</h2>
-  <p class="text-sm opacity-90 mb-4">ไม่รู้ว่าคำถามนี้ของเกมไหน? พิมพ์มาเลย — AI จะหาเกมที่ตรงที่สุดให้</p>
-  <form id="multiAskForm" class="flex flex-col sm:flex-row gap-2">
-    <input id="multiQ" required placeholder="เช่น เกมที่ใช้การ์ดสีต่าง ๆ จับคู่"
-           class="flex-1 px-4 py-3 rounded-xl text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-white">
-    <button class="bg-slate-900 hover:bg-black text-white px-6 py-3 rounded-xl font-semibold shadow transition">ค้นหาคำตอบ 🎲</button>
-  </form>
-  <div id="multiResult" class="mt-4 hidden bg-white/95 dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl p-4 shadow"></div>
-</section>
 
 <div class="grid md:grid-cols-2 gap-6">
   <section class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6">
@@ -101,36 +90,6 @@ document.getElementById('clearAllBtn')?.addEventListener('click', async () => {
   }
 });
 
-document.getElementById('multiAskForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const q = document.getElementById('multiQ').value.trim();
-  if (!q) return;
-  const box = document.getElementById('multiResult');
-  box.classList.remove('hidden');
-  box.innerHTML = '<div class="text-sm text-slate-500">🔍 กำลังค้นทุกเกม...</div>';
-  if (window.playDiceSound) window.playDiceSound();
-  try {
-    const res = await fetch('/api/v1/chat/multi', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
-      body: JSON.stringify({game_id: 0, question: q})
-    });
-    const data = await res.json();
-    if (!res.ok) { box.innerHTML = `<p class="text-rose-600">❌ ${data.detail || 'Error'}</p>`; return; }
-    const cites = (data.citations || []).map(c => `หน้า ${c.page}`).join(', ');
-    const gameTag = data.game ? `
-      <a href="/games/${data.game.id}/chat" class="inline-flex items-center gap-2 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 px-3 py-1 rounded-full text-sm font-semibold mb-2 hover:bg-amber-200">
-        🎲 ${data.game.name} →
-      </a>` : '';
-    box.innerHTML = `
-      ${gameTag}
-      <p class="whitespace-pre-wrap leading-relaxed">${data.answer.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</p>
-      ${cites ? `<p class="mt-2 text-xs text-slate-500 dark:text-slate-400">📖 ${cites}</p>` : ''}
-    `;
-  } catch (err) {
-    box.innerHTML = `<p class="text-rose-600">❌ ${err.message}</p>`;
-  }
-});
 
 (async () => {
   const res = await fetch('/api/v1/games');
