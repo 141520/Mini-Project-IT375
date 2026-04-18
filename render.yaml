@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: boardgame-ai
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python seed.py && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    disk:
+      name: boardgame-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:////data/boardgame.sqlite3
+      - key: CHROMA_DIR
+        value: /data/chroma_db
+      - key: UPLOAD_DIR
+        value: /data/uploads
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ENV
+        value: production
+      - key: DEBUG
+        value: "false"

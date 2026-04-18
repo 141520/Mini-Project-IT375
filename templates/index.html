@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- HERO -->
+<section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 border border-amber-100 shadow-sm px-6 py-14 md:py-20 text-center">
+  <div class="absolute -top-10 -left-10 text-9xl opacity-10 select-none">🎲</div>
+  <div class="absolute -bottom-10 -right-10 text-9xl opacity-10 select-none rotate-12">🃏</div>
+
+  <span class="inline-flex items-center gap-2 bg-white/80 backdrop-blur border border-amber-200 text-amber-800 text-xs font-semibold px-3 py-1 rounded-full mb-4 shadow-sm">
+    🤖 AI ผู้ช่วยกติกาบอร์ดเกม
+  </span>
+  <h1 class="text-4xl md:text-6xl font-extrabold text-slate-900 mb-4 leading-tight tracking-tight">
+    ถามกติกาบอร์ดเกม<br>
+    <span class="bg-gradient-to-r from-amber-600 via-orange-600 to-rose-600 bg-clip-text text-transparent">
+      แม่นยำระดับหน้าคู่มือ
+    </span>
+  </h1>
+  <p class="text-base md:text-lg text-slate-700 max-w-2xl mx-auto mb-8">
+    AI ตอบคำถามบอร์ดเกมของคุณ
+    พร้อม<span class="font-semibold text-amber-700">อ้างอิงจาก Rulebook</span> ทุกคำตอบ
+  </p>
+
+  <!-- SEARCH -->
+  <form method="get" action="/" class="max-w-xl mx-auto mb-6">
+    <div class="flex items-center bg-white rounded-2xl shadow-lg border border-amber-200 overflow-hidden focus-within:ring-2 focus-within:ring-amber-400">
+      <span class="pl-4 text-slate-400">🔍</span>
+      <input type="text" name="q" value="{{ q or '' }}"
+             placeholder="ค้นหาบอร์ดเกม เช่น Catan, อูโน่, ผู้ก่อตั้ง..."
+             class="flex-1 px-3 py-3 outline-none text-slate-800 placeholder-slate-400 bg-transparent">
+      {% if q %}
+        <a href="/" class="text-xs text-slate-500 hover:text-slate-700 px-2">ล้าง</a>
+      {% endif %}
+      <button class="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold px-6 py-3 transition">
+        ค้นหา
+      </button>
+    </div>
+  </form>
+
+  <div class="flex justify-center gap-3 flex-wrap">
+    {% if current_user %}
+      <a href="/dashboard" class="bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl shadow-lg font-medium transition">🎯 ไปที่ Dashboard</a>
+    {% else %}
+      <a href="/register" class="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white px-6 py-3 rounded-xl shadow-lg font-semibold transition">🚀 เริ่มใช้ฟรี</a>
+      <a href="/login" class="bg-white border border-slate-300 hover:bg-slate-50 px-6 py-3 rounded-xl font-medium transition">เข้าสู่ระบบ</a>
+    {% endif %}
+  </div>
+</section>
+
+
+<!-- CATEGORY FILTER -->
+<section class="mt-10">
+  <div class="flex flex-wrap gap-2 justify-center">
+    <a href="/{% if q %}?q={{ q }}{% endif %}"
+       class="px-4 py-1.5 rounded-full text-sm font-medium transition border
+       {% if not cat %}bg-amber-500 text-white border-amber-500 shadow{% else %}bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-amber-400{% endif %}">
+       🎲 ทั้งหมด
+    </a>
+    {% for c in categories %}
+    <a href="/?cat={{ c }}{% if q %}&q={{ q }}{% endif %}"
+       class="px-4 py-1.5 rounded-full text-sm font-medium transition border
+       {% if cat == c %}bg-amber-500 text-white border-amber-500 shadow{% else %}bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-amber-400{% endif %}">
+       {{ c }}
+    </a>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- GAMES LIST -->
+<section class="mt-8">
+  <div class="flex items-end justify-between mb-5 flex-wrap gap-2">
+    <div>
+      <h2 class="text-2xl md:text-3xl font-bold text-slate-800 flex items-center gap-2">
+        🎯 บอร์ดเกมในระบบ
+      </h2>
+      {% if q %}
+        <p class="text-sm text-slate-500 mt-1">ผลการค้นหา "<span class="font-semibold text-amber-700">{{ q }}</span>" — เจอ {{ games|length }} เกม</p>
+      {% else %}
+        <p class="text-sm text-slate-500 mt-1">เลือกเกมเพื่อเริ่มถาม AI ได้เลย</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for g in games %}
+    <a href="{% if current_user %}/games/{{ g.id }}/chat{% else %}/login{% endif %}"
+       class="group bg-white dark:bg-slate-800 rounded-2xl shadow-sm hover:shadow-xl transition-all overflow-hidden border border-slate-100 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-500 hover:-translate-y-0.5">
+      <div class="relative h-40 bg-gradient-to-br from-amber-100 via-orange-100 to-rose-100 dark:from-slate-700 dark:via-slate-700 dark:to-slate-800 overflow-hidden">
+        {% if g.image %}
+          <img src="{{ g.image }}" alt="{{ g.name }}" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-500">
+        {% else %}
+          <div class="absolute inset-0 flex items-center justify-center text-7xl opacity-40 group-hover:scale-110 transition duration-500">🎲</div>
+        {% endif %}
+        <div class="absolute top-2 right-2">
+          {% if g.is_indexed %}
+            <span class="text-xs bg-emerald-500 text-white px-2 py-0.5 rounded-full font-medium shadow">✓ พร้อมถาม</span>
+          {% else %}
+            <span class="text-xs bg-amber-500 text-white px-2 py-0.5 rounded-full font-medium shadow">รอ index</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="p-5">
+        <div class="flex items-center gap-2 mb-1">
+          <h3 class="text-lg font-bold text-slate-800 dark:text-white group-hover:text-amber-700 dark:group-hover:text-amber-400 transition">{{ g.name }}</h3>
+          {% if g.category %}
+            <span class="text-[10px] bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300 px-2 py-0.5 rounded-full font-medium">{{ g.category }}</span>
+          {% endif %}
+        </div>
+        <p class="text-sm text-slate-600 dark:text-slate-400 line-clamp-2 min-h-[2.5rem]">{{ g.description or "ไม่มีคำอธิบาย" }}</p>
+        <div class="flex items-center justify-between mt-4 pt-3 border-t border-slate-100 dark:border-slate-700">
+          <span class="text-xs text-slate-400 dark:text-slate-500">📄 {{ g.total_pages }} หน้า</span>
+          <span class="text-xs text-amber-600 dark:text-amber-400 font-semibold opacity-0 group-hover:opacity-100 transition">ถาม AI →</span>
+        </div>
+      </div>
+    </a>
+    {% else %}
+      <div class="col-span-full bg-white border-2 border-dashed border-slate-200 rounded-2xl p-12 text-center">
+        <div class="text-5xl mb-3">🎲</div>
+        {% if q %}
+          <p class="text-slate-600">ไม่พบบอร์ดเกมที่ตรงกับ "<span class="font-semibold">{{ q }}</span>"</p>
+          <a href="/" class="inline-block mt-3 text-amber-600 hover:text-amber-700 font-medium">← ดูทั้งหมด</a>
+        {% else %}
+          <p class="text-slate-600">ยังไม่มีบอร์ดเกมในระบบ</p>
+          <p class="text-sm text-slate-400 mt-1">Admin สามารถเพิ่มได้ที่หน้า Admin</p>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+{% endblock %}

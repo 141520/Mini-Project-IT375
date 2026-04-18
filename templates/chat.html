@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}💬 {{ game.name }} — BoardGame AI{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+
+  <!-- Game header -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-4 mb-4 flex items-center gap-4">
+    <a href="/dashboard" class="text-sm text-slate-500 dark:text-slate-400 hover:text-amber-600 whitespace-nowrap">← กลับ</a>
+    <div class="w-14 h-14 rounded-xl overflow-hidden bg-gradient-to-br from-amber-100 to-orange-100 dark:from-slate-700 dark:to-slate-600 flex-shrink-0 flex items-center justify-center">
+      {% if game.image %}
+        <img src="{{ game.image }}" alt="{{ game.name }}" class="w-full h-full object-cover">
+      {% else %}
+        <span class="text-2xl">🎲</span>
+      {% endif %}
+    </div>
+    <div class="flex-1 min-w-0">
+      <h1 class="text-xl font-bold text-slate-800 dark:text-white truncate">{{ game.name }}</h1>
+      <p class="text-xs text-slate-500 dark:text-slate-400">📄 {{ game.total_pages }} หน้า •
+        {% if game.is_indexed %}<span class="text-emerald-600 dark:text-emerald-400">✓ พร้อมถาม</span>
+        {% else %}<span class="text-amber-600 dark:text-amber-400">ยังไม่พร้อม</span>{% endif %}
+      </p>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div id="messages" class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 space-y-4 min-h-[400px] max-h-[60vh] overflow-y-auto">
+    <div id="emptyState" class="text-center py-6">
+      <div class="text-5xl mb-3 animate-dice inline-block">🎲</div>
+      <p class="text-slate-500 dark:text-slate-400 text-sm mb-4">💡 ลองถามกติกาเกม <span class="font-semibold text-amber-700 dark:text-amber-400">{{ game.name }}</span> ได้เลย</p>
+      <div class="flex flex-wrap gap-2 justify-center">
+        <button class="suggestion text-xs bg-amber-50 dark:bg-slate-700 hover:bg-amber-100 dark:hover:bg-slate-600 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-slate-600 px-3 py-1.5 rounded-full transition">เกมนี้เล่นกี่คน?</button>
+        <button class="suggestion text-xs bg-amber-50 dark:bg-slate-700 hover:bg-amber-100 dark:hover:bg-slate-600 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-slate-600 px-3 py-1.5 rounded-full transition">เริ่มเกมยังไง?</button>
+        <button class="suggestion text-xs bg-amber-50 dark:bg-slate-700 hover:bg-amber-100 dark:hover:bg-slate-600 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-slate-600 px-3 py-1.5 rounded-full transition">เงื่อนไขชนะคืออะไร?</button>
+        <button class="suggestion text-xs bg-amber-50 dark:bg-slate-700 hover:bg-amber-100 dark:hover:bg-slate-600 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-slate-600 px-3 py-1.5 rounded-full transition">ใช้เวลากี่นาที?</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input -->
+  <form id="chatForm" class="mt-4 flex gap-2">
+    <input id="questionInput" required placeholder="พิมพ์คำถามของคุณ..."
+           class="flex-1 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100 placeholder-slate-400 rounded-xl focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none">
+    <button class="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white px-6 rounded-xl font-semibold shadow transition flex items-center gap-2" id="sendBtn">
+      <span>🎲</span><span>ส่ง</span>
+    </button>
+  </form>
+  <p class="text-xs text-slate-400 dark:text-slate-500 mt-2 text-center">🔊 กดส่งจะมีเสียงทอยลูกเต๋า • ใช้ AI ตอบจากคู่มือ PDF จริง</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const GAME_ID = {{ game.id }};
+let convId = new URLSearchParams(location.search).get('conv');
+const msgsEl = document.getElementById('messages');
+const emptyState = document.getElementById('emptyState');
+const token = getToken();
+
+function hideEmpty() { if (emptyState) emptyState.style.display = 'none'; }
+
+function addBubble(role, content, citations=[], msgId=null) {
+  hideEmpty();
+  const isUser = role === 'user';
+  const div = document.createElement('div');
+  div.className = 'flex ' + (isUser ? 'justify-end' : 'justify-start');
+
+  const citesHtml = citations.length ? `
+    <div class="mt-2 text-xs opacity-80 border-t ${isUser ? 'border-white/20' : 'border-amber-200 dark:border-slate-600'} pt-2">
+      📖 อ้างอิง: ${citations.map(c => `<span class="font-semibold">หน้า ${c.page}</span>`).join(', ')}
+    </div>` : '';
+
+  const actionsHtml = !isUser ? `
+    <div class="flex items-center gap-1 mt-2 opacity-60 hover:opacity-100 transition">
+      <button class="rate-btn text-xs p-1 rounded hover:bg-emerald-100 dark:hover:bg-slate-700" data-rate="1" title="ดี">👍</button>
+      <button class="rate-btn text-xs p-1 rounded hover:bg-rose-100 dark:hover:bg-slate-700" data-rate="-1" title="ไม่ดี">👎</button>
+      <button class="copy-btn text-xs p-1 rounded hover:bg-amber-100 dark:hover:bg-slate-700" title="คัดลอก">📋</button>
+    </div>` : '';
+
+  div.innerHTML = `
+    <div class="max-w-[85%] ${isUser ? 'chat-user' : 'chat-ai dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100'} px-4 py-3 shadow-sm">
+      <div class="whitespace-pre-wrap leading-relaxed">${escapeHtml(content)}</div>
+      ${citesHtml}
+      ${actionsHtml}
+    </div>`;
+
+  if (!isUser) {
+    const copyBtn = div.querySelector('.copy-btn');
+    copyBtn?.addEventListener('click', () => {
+      navigator.clipboard.writeText(content);
+      copyBtn.textContent = '✓';
+      setTimeout(() => copyBtn.textContent = '📋', 1200);
+    });
+    div.querySelectorAll('.rate-btn').forEach(b => {
+      b.addEventListener('click', async () => {
+        if (!msgId) return;
+        await fetch(`/api/v1/chat/messages/${msgId}/rate`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
+          body: JSON.stringify({rating: parseInt(b.dataset.rate)})
+        }).catch(() => {});
+        b.classList.add('bg-amber-200', 'dark:bg-amber-600');
+      });
+    });
+  }
+
+  msgsEl.appendChild(div);
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+async function loadHistory() {
+  if (!convId) return;
+  const res = await fetch(`/api/v1/chat/conversations/${convId}/messages`, {
+    headers: {'Authorization': 'Bearer ' + token}
+  });
+  if (!res.ok) return;
+  const msgs = await res.json();
+  msgsEl.innerHTML = '';
+  msgs.forEach(m => {
+    let cites = [];
+    try { cites = m.citations ? JSON.parse(m.citations) : []; } catch(e){}
+    addBubble(m.role, m.content, cites, m.id);
+  });
+}
+
+document.querySelectorAll('.suggestion').forEach(b => {
+  b.addEventListener('click', () => {
+    document.getElementById('questionInput').value = b.textContent;
+    document.getElementById('chatForm').requestSubmit();
+  });
+});
+
+document.getElementById('chatForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('questionInput');
+  const q = input.value.trim();
+  if (!q) return;
+
+  if (window.playDiceSound) window.playDiceSound();
+
+  addBubble('user', q);
+  input.value = '';
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="animate-spin">⏳</span>';
+
+  const loading = document.createElement('div');
+  loading.className = 'flex justify-start';
+  loading.innerHTML = `<div class="chat-ai dark:bg-slate-700 dark:border-slate-600 px-4 py-3">
+    <span class="inline-flex gap-1">
+      <span class="w-2 h-2 bg-amber-400 rounded-full animate-bounce"></span>
+      <span class="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style="animation-delay:.15s"></span>
+      <span class="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style="animation-delay:.3s"></span>
+    </span>
+    <span class="text-sm text-slate-500 dark:text-slate-300 ml-2">AI กำลังค้นคู่มือ...</span>
+  </div>`;
+  msgsEl.appendChild(loading);
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+
+  try {
+    const res = await fetch('/api/v1/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
+      body: JSON.stringify({game_id: GAME_ID, question: q, conversation_id: convId ? parseInt(convId) : null})
+    });
+    loading.remove();
+    const data = await res.json();
+    if (!res.ok) { addBubble('assistant', '❌ ' + (data.detail || 'Error')); return; }
+    convId = data.conversation_id;
+    addBubble('assistant', data.answer, data.citations || [], data.message_id);
+  } catch (err) {
+    loading.remove();
+    addBubble('assistant', '❌ ' + err.message);
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<span>🎲</span><span>ส่ง</span>';
+  }
+});
+
+loadHistory();
+</script>
+{% endblock %}

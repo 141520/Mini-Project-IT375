@@ -1,0 +1,16 @@
+fastapi[standard]
+uvicorn
+sqlalchemy
+jinja2
+python-multipart
+pyjwt
+bcrypt
+python-dotenv
+pydantic-settings
+pymupdf
+google-genai
+scikit-learn
+numpy
+httpx
+pytest
+pytest-asyncio

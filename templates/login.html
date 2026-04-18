@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-8 mt-8">
+  <h1 class="text-2xl font-bold text-slate-800 mb-6 text-center">เข้าสู่ระบบ 🔐</h1>
+  <form id="loginForm" class="space-y-4">
+    <div>
+      <label class="text-sm text-slate-600">Username</label>
+      <input name="username" required class="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+    </div>
+    <div>
+      <label class="text-sm text-slate-600">Password</label>
+      <input name="password" type="password" required class="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+    </div>
+    <button class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg font-medium shadow">เข้าสู่ระบบ</button>
+    <div id="err" class="text-sm text-red-600 hidden"></div>
+  </form>
+  <p class="text-center text-sm text-slate-500 mt-4">ยังไม่มีบัญชี? <a href="/register" class="text-indigo-600 hover:underline">สมัครสมาชิก</a></p>
+  <div class="mt-6 text-xs text-slate-400 text-center border-t pt-4">
+    Demo: <code>admin / admin1234</code> • <code>demo / demo1234</code>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  console.log('[login] submit');
+  const fd = new FormData(e.target);
+  try {
+    const res = await fetch('/api/v1/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      credentials: 'same-origin',
+      body: JSON.stringify({username: fd.get('username'), password: fd.get('password')})
+    });
+    console.log('[login] status', res.status);
+    const data = await res.json();
+    console.log('[login] data', data);
+    if (!res.ok) {
+      const el = document.getElementById('err');
+      el.textContent = data.detail || 'เข้าสู่ระบบไม่สำเร็จ';
+      el.classList.remove('hidden');
+      return;
+    }
+    localStorage.setItem('token', data.access_token);
+    window.location = '/dashboard';
+  } catch (err) {
+    console.error('[login] error', err);
+    const el = document.getElementById('err');
+    el.textContent = 'Error: ' + err.message;
+    el.classList.remove('hidden');
+  }
+});
+</script>
+{% endblock %}

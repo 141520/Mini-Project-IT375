@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Admin Panel{% endblock %}
+{% block content %}
+<h1 class="text-3xl font-bold text-slate-800 mb-6">⚙️ Admin Panel</h1>
+
+<div class="grid grid-cols-3 gap-4 mb-8">
+  <div class="bg-white p-4 rounded-xl shadow"><p class="text-sm text-slate-500">Users</p><p class="text-3xl font-bold text-indigo-600">{{ stats.users }}</p></div>
+  <div class="bg-white p-4 rounded-xl shadow"><p class="text-sm text-slate-500">Games</p><p class="text-3xl font-bold text-pink-600">{{ stats.games }}</p></div>
+  <div class="bg-white p-4 rounded-xl shadow"><p class="text-sm text-slate-500">Indexed</p><p class="text-3xl font-bold text-green-600">{{ stats.indexed }}</p></div>
+</div>
+
+<section class="bg-white dark:bg-slate-800 rounded-2xl shadow p-6 mb-6">
+  <h2 class="text-xl font-bold mb-4">📊 Analytics (14 วันล่าสุด)</h2>
+  <div class="grid md:grid-cols-2 gap-6">
+    <div>
+      <p class="text-sm text-slate-500 mb-2">คำถามต่อวัน</p>
+      <canvas id="chartDaily" height="180"></canvas>
+    </div>
+    <div>
+      <p class="text-sm text-slate-500 mb-2">เกมยอดนิยม (top 8)</p>
+      <canvas id="chartTopGames" height="180"></canvas>
+    </div>
+    <div class="md:col-span-2">
+      <p class="text-sm text-slate-500 mb-2">👍 / 👎 ต่อเกม</p>
+      <canvas id="chartRatings" height="120"></canvas>
+    </div>
+  </div>
+</section>
+
+<section class="bg-white dark:bg-slate-800 rounded-2xl shadow p-6 mb-6">
+  <h2 class="text-xl font-bold mb-4">➕ เพิ่มบอร์ดเกม</h2>
+  <form id="addGameForm" class="grid md:grid-cols-2 gap-4">
+    <input name="name" required placeholder="ชื่อเกม" class="px-3 py-2 border rounded-lg">
+    <select name="category" class="px-3 py-2 border rounded-lg">
+      <option value="">— หมวด —</option>
+      <option>ครอบครัว</option><option>ปาร์ตี้</option><option>กลยุทธ์</option>
+      <option>การ์ด</option><option>เด็ก</option><option>สองคน</option>
+    </select>
+    <input name="language" value="th" placeholder="ภาษา" class="px-3 py-2 border rounded-lg">
+    <textarea name="description" placeholder="คำอธิบาย" class="md:col-span-2 px-3 py-2 border rounded-lg" rows="2"></textarea>
+    <div><label class="text-sm text-slate-600">รูป</label><input name="image" type="file" accept="image/*" class="w-full"></div>
+    <div><label class="text-sm text-slate-600">PDF คู่มือ</label><input name="pdf" type="file" accept="application/pdf" class="w-full"></div>
+    <button class="md:col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg">บันทึก + อัปโหลด</button>
+  </form>
+</section>
+
+<section class="bg-white rounded-2xl shadow p-6 mb-6">
+  <h2 class="text-xl font-semibold mb-4">🎲 รายการบอร์ดเกม</h2>
+  <table class="w-full text-sm">
+    <thead class="border-b text-left text-slate-500">
+      <tr><th class="py-2">ID</th><th>Name</th><th>Pages</th><th>Status</th><th>Actions</th></tr>
+    </thead>
+    <tbody class="divide-y">
+      {% for g in games %}
+      <tr>
+        <td class="py-2">{{ g.id }}</td>
+        <td>{{ g.name }}</td>
+        <td>{{ g.total_pages }}</td>
+        <td>
+          {% if g.is_indexed %}<span class="text-green-600">✅ Indexed</span>
+          {% else %}<span class="text-amber-600">⏳ Pending</span>{% endif %}
+        </td>
+        <td class="space-x-2">
+          <button onclick="indexGame({{ g.id }})" class="text-indigo-600 hover:underline">Index PDF</button>
+          <button onclick="deleteGame({{ g.id }})" class="text-red-600 hover:underline">Delete</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="bg-white rounded-2xl shadow p-6">
+  <h2 class="text-xl font-semibold mb-4">👥 ผู้ใช้งาน</h2>
+  <table class="w-full text-sm">
+    <thead class="border-b text-left text-slate-500"><tr><th class="py-2">ID</th><th>Username</th><th>Email</th><th>Role</th><th>Active</th><th></th></tr></thead>
+    <tbody class="divide-y">
+      {% for u in users %}
+      <tr>
+        <td class="py-2">{{ u.id }}</td>
+        <td>{{ u.username }}</td>
+        <td>{{ u.email }}</td>
+        <td>{% if u.role == "admin" %}<span class="text-pink-600 font-medium">admin</span>{% else %}user{% endif %}</td>
+        <td>{% if u.is_active %}✅{% else %}🚫{% endif %}</td>
+        <td><button onclick="toggleUser({{ u.id }})" class="text-indigo-600 hover:underline">Toggle</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const token = localStorage.getItem('token') || document.cookie.split('access_token=')[1]?.split(';')[0];
+
+(async () => {
+  try {
+    const res = await fetch('/api/v1/admin/analytics', {headers: {'Authorization': 'Bearer ' + token}});
+    if (!res.ok) return;
+    const a = await res.json();
+    const isDark = document.documentElement.classList.contains('dark');
+    const tick = isDark ? '#cbd5e1' : '#475569';
+    Chart.defaults.color = tick;
+    Chart.defaults.font.family = 'Sarabun, Prompt, sans-serif';
+
+    new Chart(document.getElementById('chartDaily'), {
+      type: 'line',
+      data: { labels: a.daily.labels, datasets: [{
+        label: 'คำถาม', data: a.daily.counts,
+        borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.15)',
+        tension: 0.3, fill: true,
+      }]},
+      options: { plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true,ticks:{precision:0}}}}
+    });
+
+    new Chart(document.getElementById('chartTopGames'), {
+      type: 'bar',
+      data: { labels: a.top_games.labels, datasets: [{
+        label: 'จำนวนคำถาม', data: a.top_games.counts,
+        backgroundColor: ['#f59e0b','#fb923c','#f87171','#fb7185','#a78bfa','#60a5fa','#34d399','#fbbf24'],
+      }]},
+      options: { indexAxis:'y', plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true,ticks:{precision:0}}}}
+    });
+
+    new Chart(document.getElementById('chartRatings'), {
+      type: 'bar',
+      data: { labels: a.ratings.labels, datasets: [
+        { label: '👍', data: a.ratings.up, backgroundColor: '#10b981' },
+        { label: '👎', data: a.ratings.down, backgroundColor: '#ef4444' },
+      ]},
+      options: { scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true,ticks:{precision:0}}}}
+    });
+  } catch (e) { console.error('analytics:', e); }
+})();
+
+function authHeaders() { return {'Authorization': 'Bearer ' + token}; }
+
+document.getElementById('addGameForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const res = await fetch('/api/v1/admin/games', {method:'POST', headers: authHeaders(), body: fd});
+  if (!res.ok) { alert('Failed: ' + (await res.text())); return; }
+  const data = await res.json();
+  if (confirm('สร้างเกม ID ' + data.id + ' สำเร็จ จะ index PDF เลยไหม?')) await indexGame(data.id);
+  location.reload();
+});
+
+async function indexGame(id) {
+  const btn = event?.target; if (btn) btn.textContent = 'Indexing...';
+  const res = await fetch(`/api/v1/admin/games/${id}/index`, {method:'POST', headers: authHeaders()});
+  const data = await res.json();
+  alert(res.ok ? `✅ Indexed ${data.indexed_chunks} chunks (${data.pages} pages)` : `❌ ${data.detail}`);
+  location.reload();
+}
+
+async function deleteGame(id) {
+  if (!confirm('ลบเกมนี้?')) return;
+  await fetch(`/api/v1/admin/games/${id}`, {method:'DELETE', headers: authHeaders()});
+  location.reload();
+}
+
+async function toggleUser(id) {
+  await fetch(`/api/v1/admin/users/${id}/toggle`, {method:'POST', headers: authHeaders()});
+  location.reload();
+}
+</script>
+{% endblock %}
