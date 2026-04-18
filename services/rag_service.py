@@ -1,19 +1,19 @@
-"""RAG: retrieve context + generate answer with Gemini."""
+"""RAG: retrieve context + generate answer with Groq (LLaMA 3)."""
 from typing import Dict, List
 import json
 import re
 from config import settings
 from services import vector_store
 
-_genai_client = None
+_groq_client = None
 
 
 def _gc():
-    global _genai_client
-    if _genai_client is None:
-        from google import genai
-        _genai_client = genai.Client(api_key=settings.GEMINI_API_KEY)
-    return _genai_client
+    global _groq_client
+    if _groq_client is None:
+        from groq import Groq
+        _groq_client = Groq(api_key=settings.GROQ_API_KEY)
+    return _groq_client
 
 
 PROMPT_TEMPLATE = """You are a board game rules assistant for "{game_name}".
@@ -36,19 +36,18 @@ def _is_thai(text: str) -> bool:
 
 
 def translate_th_to_en(text: str) -> str:
-    """Translate Thai text to English using Gemini. Returns original on failure."""
-    if not _is_thai(text) or not settings.GEMINI_API_KEY:
+    """Translate Thai text to English using Groq. Returns original on failure."""
+    if not _is_thai(text) or not settings.GROQ_API_KEY:
         return text
     try:
-        resp = _gc().models.generate_content(
-            model=settings.GEMINI_MODEL,
-            contents=f"Translate this Thai text to English. Output only the translation, nothing else.\n\n{text}",
+        resp = _gc().chat.completions.create(
+            model=settings.GROQ_MODEL,
+            messages=[{"role": "user", "content": f"Translate this Thai text to English. Output only the translation, nothing else.\n\n{text}"}],
+            max_tokens=200,
         )
-        result = (resp.text or "").strip()
+        result = (resp.choices[0].message.content or "").strip()
         return result if result else text
-    except Exception as e:
-        if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-            return text  # ใช้ Thai query ตรง ๆ แทน
+    except Exception:
         return text
 
 
@@ -62,13 +61,12 @@ def generate_answer(game_name: str, question: str, hits: List[Dict]) -> str:
 
     context = build_context(hits)
 
-    if not settings.GEMINI_API_KEY:
+    if not settings.GROQ_API_KEY:
         return (
-            f"(โหมดทดสอบ: ไม่ได้ตั้ง GEMINI_API_KEY)\n\n"
+            f"(โหมดทดสอบ: ไม่ได้ตั้ง GROQ_API_KEY)\n\n"
             f"ตามคู่มือที่เกี่ยวข้อง:\n\n{context[:800]}..."
         )
 
-    # translate Thai question → English for the prompt
     question_en = translate_th_to_en(question) if _is_thai(question) else question
     question_th = question if _is_thai(question) else ""
 
@@ -83,14 +81,18 @@ def generate_answer(game_name: str, question: str, hits: List[Dict]) -> str:
     last_err = None
     for attempt in range(2):
         try:
-            resp = _gc().models.generate_content(model=settings.GEMINI_MODEL, contents=prompt)
-            result = (resp.text or "").strip()
+            resp = _gc().chat.completions.create(
+                model=settings.GROQ_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1024,
+            )
+            result = (resp.choices[0].message.content or "").strip()
             if not result or result == "NO_INFO":
                 return "ไม่พบข้อมูลในคู่มือ"
             return result
         except Exception as e:
             last_err = e
-            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+            if "429" in str(e) or "rate_limit" in str(e).lower():
                 if attempt == 0:
                     time.sleep(5)
                     continue
@@ -104,11 +106,9 @@ def generate_answer(game_name: str, question: str, hits: List[Dict]) -> str:
 
 
 def answer_question(game_id: int, game_name: str, question: str) -> Dict:
-    # translate Thai → English for TF-IDF search (English rulebooks match better)
     search_query = translate_th_to_en(question) if _is_thai(question) else question
 
     hits = vector_store.search(game_id, search_query, top_k=5)
-    # fallback: also search with original Thai in case PDF is Thai
     if not hits or hits[0].get("score", 0) < 0.01:
         hits_th = vector_store.search(game_id, question, top_k=5)
         if hits_th and (not hits or hits_th[0].get("score", 0) > hits[0].get("score", 0)):

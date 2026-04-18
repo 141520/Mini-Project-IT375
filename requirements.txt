@@ -9,7 +9,7 @@ python-dotenv
 pydantic-settings
 pymupdf
 pytesseract
-google-genai
+groq
 scikit-learn
 numpy
 httpx
