@@ -9,8 +9,9 @@
   <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow"><p class="text-sm text-slate-500">Indexed</p><p class="text-3xl font-bold text-green-600">{{ stats.indexed }}</p></div>
 </div>
 
+<!-- เพิ่มบอร์ดเกม -->
 <section class="bg-white dark:bg-slate-800 rounded-2xl shadow p-6 mb-6">
-  <h2 class="text-xl font-bold mb-4">➕ เพิ่มบอร์ดเกม</h2>
+  <h2 class="text-xl font-bold mb-4 dark:text-white">➕ เพิ่มบอร์ดเกม</h2>
   <form id="addGameForm" class="grid md:grid-cols-2 gap-4">
     <input name="name" required placeholder="ชื่อเกม" class="px-3 py-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white">
     <select name="category" class="px-3 py-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white">
@@ -21,30 +22,100 @@
     <input name="language" value="th" placeholder="ภาษา" class="px-3 py-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white">
     <textarea name="description" placeholder="คำอธิบาย" class="md:col-span-2 px-3 py-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white" rows="2"></textarea>
     <div><label class="text-sm text-slate-600 dark:text-slate-400">รูป</label><input name="image" type="file" accept="image/*" class="w-full"></div>
-    <div><label class="text-sm text-slate-600 dark:text-slate-400">PDF คู่มือ</label><input name="pdf" type="file" accept="application/pdf" class="w-full"></div>
-    <button class="md:col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg">บันทึก + อัปโหลด</button>
+    <div><label class="text-sm text-slate-600 dark:text-slate-400">PDF คู่มือ (หลัก)</label><input name="pdf" type="file" accept="application/pdf" class="w-full"></div>
+    <button class="md:col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg font-semibold">บันทึก + อัปโหลด</button>
   </form>
 </section>
 
+<!-- รายการบอร์ดเกม -->
 <section class="bg-white dark:bg-slate-800 rounded-2xl shadow p-6 mb-6">
   <h2 class="text-xl font-semibold mb-4 dark:text-white">🎲 รายการบอร์ดเกม</h2>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="border-b dark:border-slate-700 text-left text-slate-500">
+        <tr>
+          <th class="py-2 pr-3">ID</th>
+          <th class="pr-3">ชื่อเกม</th>
+          <th class="pr-3">หน้า</th>
+          <th class="pr-3">สถานะ</th>
+          <th>ไฟล์ PDF</th>
+          <th class="text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y dark:divide-slate-700">
+        {% for g in games %}
+        <tr class="dark:text-slate-300 align-top">
+          <td class="py-3 pr-3 text-slate-400">{{ g.id }}</td>
+          <td class="py-3 pr-3 font-medium">{{ g.name }}</td>
+          <td class="py-3 pr-3">{{ g.total_pages }}</td>
+          <td class="py-3 pr-3">
+            {% if g.is_indexed %}
+              <span class="text-green-600 font-medium">✅ พร้อม</span>
+            {% else %}
+              <span class="text-amber-600">⏳ รอ Index</span>
+            {% endif %}
+          </td>
+          <td class="py-3 pr-3">
+            <!-- PDF หลัก -->
+            {% if g.pdf_path %}
+            <div class="flex items-center gap-1 mb-1">
+              <span class="text-xs bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full">📄 หลัก</span>
+              <span class="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[120px]" title="{{ g.pdf_path }}">{{ g.pdf_path.split('/')[-1].split('\\')[-1] }}</span>
+            </div>
+            {% endif %}
+            <!-- PDF เพิ่มเติม -->
+            {% for ep in g.extra_pdfs %}
+            <div class="flex items-center gap-1 mb-1">
+              <span class="text-xs bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full">📄 {{ loop.index + 1 }}</span>
+              <span class="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[120px]" title="{{ ep.filename }}">{{ ep.filename }}</span>
+              <button onclick="deletePdf({{ g.id }}, {{ ep.id }}, '{{ ep.filename }}')" class="text-red-400 hover:text-red-600 text-xs ml-1">✕</button>
+            </div>
+            {% endfor %}
+            <!-- ปุ่มเพิ่ม PDF (ถ้ายังไม่ครบ 5) -->
+            {% set pdf_count = g.extra_pdfs|length + (1 if g.pdf_path else 0) %}
+            {% if pdf_count < 5 %}
+            <button onclick="showAddPdf({{ g.id }}, '{{ g.name }}')"
+              class="text-xs text-emerald-600 hover:text-emerald-700 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 rounded-full mt-1">
+              + เพิ่ม PDF ({{ pdf_count }}/5)
+            </button>
+            {% else %}
+            <span class="text-xs text-slate-400">ครบ 5 ไฟล์แล้ว</span>
+            {% endif %}
+          </td>
+          <td class="py-3 text-right space-x-2 whitespace-nowrap">
+            <button onclick="indexGame({{ g.id }})" class="text-indigo-600 hover:underline text-xs">🔄 Index</button>
+            <button onclick="deleteGame({{ g.id }})" class="text-red-500 hover:underline text-xs">🗑 ลบ</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ผู้ใช้งาน -->
+<section class="bg-white dark:bg-slate-800 rounded-2xl shadow p-6">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-xl font-semibold dark:text-white">👥 ผู้ใช้งาน</h2>
+    <button onclick="showAddUser()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg font-semibold">+ เพิ่มผู้ใช้</button>
+  </div>
   <table class="w-full text-sm">
     <thead class="border-b dark:border-slate-700 text-left text-slate-500">
-      <tr><th class="py-2">ID</th><th>Name</th><th>Pages</th><th>Status</th><th>Actions</th></tr>
+      <tr><th class="py-2">ID</th><th>Username</th><th>Email</th><th>Role</th><th>สถานะ</th><th class="text-right">Actions</th></tr>
     </thead>
     <tbody class="divide-y dark:divide-slate-700">
-      {% for g in games %}
+      {% for u in users %}
       <tr class="dark:text-slate-300">
-        <td class="py-2">{{ g.id }}</td>
-        <td>{{ g.name }}</td>
-        <td>{{ g.total_pages }}</td>
-        <td>
-          {% if g.is_indexed %}<span class="text-green-600">✅ Indexed</span>
-          {% else %}<span class="text-amber-600">⏳ Pending</span>{% endif %}
-        </td>
-        <td class="space-x-2">
-          <button onclick="indexGame({{ g.id }})" class="text-indigo-600 hover:underline">Index PDF</button>
-          <button onclick="deleteGame({{ g.id }})" class="text-red-600 hover:underline">Delete</button>
+        <td class="py-2 text-slate-400">{{ u.id }}</td>
+        <td class="font-medium">{{ u.username }}</td>
+        <td class="text-slate-500 dark:text-slate-400">{{ u.email }}</td>
+        <td>{% if u.role == "admin" %}<span class="text-pink-600 font-semibold">admin</span>{% else %}<span class="text-slate-500">user</span>{% endif %}</td>
+        <td>{% if u.is_active %}<span class="text-green-600">✅ เปิด</span>{% else %}<span class="text-red-500">🚫 ปิด</span>{% endif %}</td>
+        <td class="text-right space-x-2">
+          <button onclick="toggleUser({{ u.id }})" class="text-indigo-600 hover:underline text-xs">Toggle</button>
+          {% if u.role != "admin" %}
+          <button onclick="deleteUser({{ u.id }}, '{{ u.username }}')" class="text-red-500 hover:underline text-xs">ลบ</button>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -52,58 +123,130 @@
   </table>
 </section>
 
-<section class="bg-white dark:bg-slate-800 rounded-2xl shadow p-6">
-  <h2 class="text-xl font-semibold mb-4 dark:text-white">👥 ผู้ใช้งาน</h2>
-  <table class="w-full text-sm">
-    <thead class="border-b dark:border-slate-700 text-left text-slate-500"><tr><th class="py-2">ID</th><th>Username</th><th>Email</th><th>Role</th><th>Active</th><th></th></tr></thead>
-    <tbody class="divide-y dark:divide-slate-700">
-      {% for u in users %}
-      <tr class="dark:text-slate-300">
-        <td class="py-2">{{ u.id }}</td>
-        <td>{{ u.username }}</td>
-        <td>{{ u.email }}</td>
-        <td>{% if u.role == "admin" %}<span class="text-pink-600 font-medium">admin</span>{% else %}user{% endif %}</td>
-        <td>{% if u.is_active %}✅{% else %}🚫{% endif %}</td>
-        <td><button onclick="toggleUser({{ u.id }})" class="text-indigo-600 hover:underline">Toggle</button></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</section>
+<!-- Modal เพิ่ม PDF -->
+<div id="pdfModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-6 w-full max-w-md mx-4">
+    <h3 class="text-lg font-bold mb-1 dark:text-white">📄 เพิ่ม PDF — <span id="modalGameName" class="text-amber-600"></span></h3>
+    <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">ใส่ได้สูงสุด 5 ไฟล์ต่อเกม (รวม PDF หลัก)</p>
+    <input type="file" id="extraPdfInput" accept="application/pdf" class="w-full mb-4 text-sm dark:text-slate-300">
+    <div class="flex gap-2 justify-end">
+      <button onclick="closePdfModal()" class="px-4 py-2 rounded-lg border dark:border-slate-600 dark:text-white text-sm">ยกเลิก</button>
+      <button onclick="uploadExtraPdf()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold">อัปโหลด</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal เพิ่มผู้ใช้ -->
+<div id="userModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-6 w-full max-w-md mx-4">
+    <h3 class="text-lg font-bold mb-4 dark:text-white">👤 เพิ่มผู้ใช้ใหม่</h3>
+    <div class="space-y-3">
+      <input id="newUsername" placeholder="Username" class="w-full px-3 py-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white text-sm">
+      <input id="newEmail" type="email" placeholder="Email" class="w-full px-3 py-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white text-sm">
+      <input id="newPassword" type="password" placeholder="Password" class="w-full px-3 py-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white text-sm">
+      <select id="newRole" class="w-full px-3 py-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white text-sm">
+        <option value="user">User</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <div class="flex gap-2 justify-end mt-4">
+      <button onclick="closeUserModal()" class="px-4 py-2 rounded-lg border dark:border-slate-600 dark:text-white text-sm">ยกเลิก</button>
+      <button onclick="createUser()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold">สร้างผู้ใช้</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 const token = localStorage.getItem('token') || document.cookie.split('access_token=')[1]?.split(';')[0];
-
 function authHeaders() { return {'Authorization': 'Bearer ' + token}; }
 
+// ── Games ────────────────────────────────────────────
 document.getElementById('addGameForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
   const res = await fetch('/api/v1/admin/games', {method:'POST', headers: authHeaders(), body: fd});
   if (!res.ok) { alert('Failed: ' + (await res.text())); return; }
   const data = await res.json();
-  if (confirm('สร้างเกม ID ' + data.id + ' สำเร็จ จะ index PDF เลยไหม?')) await indexGame(data.id);
+  if (confirm('สร้างเกม ID ' + data.id + ' สำเร็จ จะ Index PDF เลยไหม?')) await indexGame(data.id);
   location.reload();
 });
 
 async function indexGame(id) {
-  const btn = event?.target; if (btn) btn.textContent = 'Indexing...';
+  const btn = event?.target; if (btn) { btn.textContent = 'กำลัง Index...'; btn.disabled = true; }
   const res = await fetch(`/api/v1/admin/games/${id}/index`, {method:'POST', headers: authHeaders()});
   const data = await res.json();
-  alert(res.ok ? `✅ Indexed ${data.indexed_chunks} chunks (${data.pages} pages)` : `❌ ${data.detail}`);
+  alert(res.ok
+    ? `✅ Indexed ${data.indexed_chunks} chunks (${data.pages} หน้า, ${data.pdf_count} PDF)`
+    : `❌ ${data.detail}`);
   location.reload();
 }
 
 async function deleteGame(id) {
-  if (!confirm('ลบเกมนี้?')) return;
+  if (!confirm('ลบเกมนี้และไฟล์ทั้งหมด?')) return;
   await fetch(`/api/v1/admin/games/${id}`, {method:'DELETE', headers: authHeaders()});
   location.reload();
 }
 
+// ── PDF Modal ────────────────────────────────────────
+let _pdfGameId = null;
+function showAddPdf(id, name) {
+  _pdfGameId = id;
+  document.getElementById('modalGameName').textContent = name;
+  document.getElementById('extraPdfInput').value = '';
+  document.getElementById('pdfModal').classList.remove('hidden');
+}
+function closePdfModal() { document.getElementById('pdfModal').classList.add('hidden'); }
+
+async function uploadExtraPdf() {
+  const file = document.getElementById('extraPdfInput').files[0];
+  if (!file) { alert('กรุณาเลือกไฟล์ PDF'); return; }
+  const fd = new FormData(); fd.append('pdf', file);
+  const res = await fetch(`/api/v1/admin/games/${_pdfGameId}/pdfs`, {method:'POST', headers: authHeaders(), body: fd});
+  const data = await res.json();
+  if (!res.ok) { alert('❌ ' + data.detail); return; }
+  alert('✅ ' + data.message);
+  closePdfModal(); location.reload();
+}
+
+async function deletePdf(gameId, pdfId, filename) {
+  if (!confirm(`ลบไฟล์ "${filename}"?`)) return;
+  const res = await fetch(`/api/v1/admin/games/${gameId}/pdfs/${pdfId}`, {method:'DELETE', headers: authHeaders()});
+  if (!res.ok) { alert('❌ ลบไม่สำเร็จ'); return; }
+  location.reload();
+}
+
+// ── User Modal ───────────────────────────────────────
+function showAddUser() { document.getElementById('userModal').classList.remove('hidden'); }
+function closeUserModal() { document.getElementById('userModal').classList.add('hidden'); }
+
+async function createUser() {
+  const username = document.getElementById('newUsername').value.trim();
+  const email    = document.getElementById('newEmail').value.trim();
+  const password = document.getElementById('newPassword').value;
+  const role     = document.getElementById('newRole').value;
+  if (!username || !email || !password) { alert('กรุณากรอกข้อมูลให้ครบ'); return; }
+  const fd = new FormData();
+  fd.append('username', username); fd.append('email', email);
+  fd.append('password', password); fd.append('role', role);
+  const res = await fetch('/api/v1/admin/users', {method:'POST', headers: authHeaders(), body: fd});
+  const data = await res.json();
+  if (!res.ok) { alert('❌ ' + data.detail); return; }
+  alert(`✅ สร้างผู้ใช้ "${data.username}" สำเร็จ`);
+  closeUserModal(); location.reload();
+}
+
 async function toggleUser(id) {
   await fetch(`/api/v1/admin/users/${id}/toggle`, {method:'POST', headers: authHeaders()});
+  location.reload();
+}
+
+async function deleteUser(id, username) {
+  if (!confirm(`ลบผู้ใช้ "${username}" ออกจากระบบ?`)) return;
+  const res = await fetch(`/api/v1/admin/users/${id}`, {method:'DELETE', headers: authHeaders()});
+  const data = await res.json();
+  if (!res.ok) { alert('❌ ' + data.detail); return; }
   location.reload();
 }
 </script>

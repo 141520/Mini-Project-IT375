@@ -6,7 +6,7 @@ from sqlalchemy import func
 
 from config import settings
 from database import get_db
-from models import BoardGame, User, Message, Conversation
+from models import BoardGame, User, Message, Conversation, GamePDF
 from auth import require_admin
 from services import pdf_parser, vector_store
 
@@ -47,40 +47,87 @@ def create_game(
     return {"id": game.id, "message": "Game created. Use /games/{id}/index to index PDF."}
 
 
+@router.post("/games/{game_id}/pdfs")
+def add_pdf(
+    game_id: int,
+    pdf: UploadFile = File(...),
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    game = db.get(BoardGame, game_id)
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    existing = db.query(GamePDF).filter(GamePDF.game_id == game_id).count()
+    # count main PDF too
+    main_count = 1 if (game.pdf_path and os.path.exists(game.pdf_path)) else 0
+    if existing + main_count >= 5:
+        raise HTTPException(status_code=400, detail="ใส่ PDF ได้สูงสุด 5 ไฟล์ต่อเกม")
+
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    safe_name = pdf.filename.replace(" ", "_")
+    pdf_path = os.path.join(settings.UPLOAD_DIR, f"game_{game_id}_extra_{existing+1}_{safe_name}")
+    with open(pdf_path, "wb") as f:
+        shutil.copyfileobj(pdf.file, f)
+
+    db.add(GamePDF(game_id=game_id, pdf_path=pdf_path, filename=pdf.filename))
+    game.is_indexed = False  # ต้อง re-index
+    db.commit()
+    return {"message": f"เพิ่ม PDF '{pdf.filename}' สำเร็จ กรุณา Index ใหม่"}
+
+
+@router.delete("/games/{game_id}/pdfs/{pdf_id}")
+def delete_pdf(
+    game_id: int,
+    pdf_id: int,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    gp = db.query(GamePDF).filter(GamePDF.id == pdf_id, GamePDF.game_id == game_id).first()
+    if not gp:
+        raise HTTPException(status_code=404, detail="PDF not found")
+    if os.path.exists(gp.pdf_path):
+        os.remove(gp.pdf_path)
+    db.delete(gp)
+    db.commit()
+    return {"status": "deleted"}
+
+
 @router.post("/games/{game_id}/index")
 def index_game(game_id: int, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     game = db.get(BoardGame, game_id)
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
-    if not game.pdf_path or not os.path.exists(game.pdf_path):
-        raise HTTPException(status_code=400, detail="PDF not uploaded")
 
-    try:
-        chunks = pdf_parser.chunk_pdf(game.pdf_path)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"PDF parse error: {e}")
+    # รวม PDF หลัก + PDF เพิ่มเติม
+    pdf_paths = []
+    if game.pdf_path and os.path.exists(game.pdf_path):
+        pdf_paths.append(game.pdf_path)
+    for gp in db.query(GamePDF).filter(GamePDF.game_id == game_id).all():
+        if os.path.exists(gp.pdf_path):
+            pdf_paths.append(gp.pdf_path)
 
-    if not chunks:
-        # Try to diagnose why
+    if not pdf_paths:
+        raise HTTPException(status_code=400, detail="ไม่มีไฟล์ PDF — กรุณาอัปโหลดก่อน")
+
+    all_chunks = []
+    for path in pdf_paths:
         try:
-            from services.pdf_parser import extract_pages
-            raw_pages = extract_pages(game.pdf_path)
-            if not raw_pages:
-                raise HTTPException(status_code=422, detail="PDF ไม่มีข้อความ (อาจเป็น PDF สแกน/รูปภาพ) — ต้องใช้ PDF ที่มีข้อความจริง")
-            raise HTTPException(status_code=422, detail=f"PDF มี {len(raw_pages)} หน้าแต่ chunk ไม่ได้ — ลองอัปโหลดใหม่")
-        except HTTPException:
-            raise
+            all_chunks.extend(pdf_parser.chunk_pdf(path))
         except Exception as e:
-            raise HTTPException(status_code=422, detail=f"PDF อ่านได้แต่ chunk ไม่สำเร็จ: {e}")
+            raise HTTPException(status_code=500, detail=f"PDF parse error ({os.path.basename(path)}): {e}")
 
-    count = vector_store.index_chunks(game.id, chunks)
-    pages = len({c["page"] for c in chunks})
+    if not all_chunks:
+        raise HTTPException(status_code=422, detail="PDF ไม่มีข้อความ — อาจเป็น PDF สแกน/รูปภาพ")
+
+    count = vector_store.index_chunks(game.id, all_chunks)
+    pages = len({c["page"] for c in all_chunks})
 
     game.is_indexed = True
     game.total_pages = pages
     db.commit()
 
-    return {"indexed_chunks": count, "pages": pages}
+    return {"indexed_chunks": count, "pages": pages, "pdf_count": len(pdf_paths)}
 
 
 @router.delete("/games/{game_id}")
@@ -180,6 +227,33 @@ def list_users(admin: User = Depends(require_admin), db: Session = Depends(get_d
     return db.query(User).order_by(User.created_at.desc()).all()
 
 
+@router.post("/users")
+def create_user(
+    username: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    role: str = Form("user"),
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    from auth import hash_password
+    if db.query(User).filter_by(username=username).first():
+        raise HTTPException(status_code=400, detail="Username นี้มีอยู่แล้ว")
+    if db.query(User).filter_by(email=email).first():
+        raise HTTPException(status_code=400, detail="Email นี้มีอยู่แล้ว")
+    user = User(
+        username=username,
+        email=email,
+        password_hash=hash_password(password),
+        role=role,
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {"id": user.id, "username": user.username, "message": "สร้างผู้ใช้สำเร็จ"}
+
+
 @router.post("/users/{user_id}/toggle")
 def toggle_user(user_id: int, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     u = db.get(User, user_id)
@@ -188,3 +262,17 @@ def toggle_user(user_id: int, admin: User = Depends(require_admin), db: Session 
     u.is_active = not u.is_active
     db.commit()
     return {"id": u.id, "is_active": u.is_active}
+
+
+@router.delete("/users/{user_id}")
+def delete_user(user_id: int, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    u = db.get(User, user_id)
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+    if u.role == "admin":
+        raise HTTPException(status_code=400, detail="ไม่สามารถลบ admin ได้")
+    if u.id == admin.id:
+        raise HTTPException(status_code=400, detail="ไม่สามารถลบตัวเองได้")
+    db.delete(u)
+    db.commit()
+    return {"status": "deleted"}

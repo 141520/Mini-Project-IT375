@@ -5,7 +5,8 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import BoardGame, User, Conversation
+from models import BoardGame, User, Conversation, GamePDF
+from sqlalchemy.orm import joinedload
 from auth import get_optional_user, get_current_user, require_admin
 
 router = APIRouter()
@@ -88,7 +89,9 @@ def admin_home(request: Request, user=Depends(get_optional_user), db: Session = 
         return RedirectResponse("/login")
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin only")
-    games = db.query(BoardGame).order_by(BoardGame.created_at.desc()).all()
+    games = (db.query(BoardGame)
+               .options(joinedload(BoardGame.extra_pdfs))
+               .order_by(BoardGame.created_at.desc()).all())
     users = db.query(User).order_by(User.created_at.desc()).all()
     stats_data = {
         "users": len(users),

@@ -27,6 +27,7 @@ class BoardGame(Base):
     is_indexed = Column(Boolean, default=False)
     total_pages = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
+    extra_pdfs = relationship("GamePDF", back_populates="game", cascade="all, delete-orphan")
 
 
 class Conversation(Base):
@@ -54,6 +55,18 @@ class Message(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     conversation = relationship("Conversation", back_populates="messages")
+
+
+class GamePDF(Base):
+    """Additional PDF files per game (max 5)."""
+    __tablename__ = "game_pdfs"
+    id         = Column(Integer, primary_key=True, index=True)
+    game_id    = Column(Integer, ForeignKey("board_games.id"), nullable=False)
+    pdf_path   = Column(String(300), nullable=False)
+    filename   = Column(String(200), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    game = relationship("BoardGame", back_populates="extra_pdfs")
 
 
 class Favorite(Base):
