@@ -41,10 +41,13 @@ def _get_google_certs() -> dict:
 
 
 def verify_id_token(id_token: str) -> Optional[dict]:
-    """Verify Firebase ID token ด้วย Google Public Keys
+    """Verify Firebase ID token ด้วย Google Public Keys (X.509 PEM certs)
     Returns decoded claims dict หรือ None ถ้าไม่ valid
     """
     try:
+        from cryptography import x509
+        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
         certs = _get_google_certs()
         if not certs:
             print("[firebase] no certs available")
@@ -54,10 +57,17 @@ def verify_id_token(id_token: str) -> Optional[dict]:
         header = jwt.get_unverified_header(id_token)
         kid = header.get("kid")
         if kid not in certs:
-            print(f"[firebase] kid '{kid}' not found in certs")
+            print(f"[firebase] kid '{kid}' not found in certs, available: {list(certs.keys())}")
             return None
 
-        public_key = certs[kid]
+        # แปลง X.509 PEM cert → RSA Public Key
+        pem_cert = certs[kid].encode("utf-8")
+        cert = x509.load_pem_x509_certificate(pem_cert)
+        public_key = cert.public_key().public_bytes(
+            encoding=Encoding.PEM,
+            format=PublicFormat.SubjectPublicKeyInfo,
+        )
+
         decoded = jwt.decode(
             id_token,
             public_key,
@@ -65,13 +75,16 @@ def verify_id_token(id_token: str) -> Optional[dict]:
             audience=_FIREBASE_PROJECT_ID,
             options={"verify_exp": True},
         )
+
         # ตรวจ issuer
         expected_iss = f"https://securetoken.google.com/{_FIREBASE_PROJECT_ID}"
         if decoded.get("iss") != expected_iss:
             print(f"[firebase] invalid iss: {decoded.get('iss')}")
             return None
 
+        print(f"[firebase] token OK: {decoded.get('email')}")
         return decoded
+
     except jwt.ExpiredSignatureError:
         print("[firebase] token expired")
         return None
