@@ -15,12 +15,13 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
 
 const firebaseConfig = {
-  apiKey: "PASTE_YOUR_API_KEY",
-  authDomain: "your-project.firebaseapp.com",
-  projectId: "your-project",
-  storageBucket: "your-project.appspot.com",
-  messagingSenderId: "1234567890",
-  appId: "1:1234567890:web:abcdef",
+  apiKey: "AIzaSyDxSYqNsQJ8so7u2vffsfieWzriWaBEd7Q",
+  authDomain: "ig342-f1cc4.firebaseapp.com",
+  projectId: "ig342-f1cc4",
+  storageBucket: "ig342-f1cc4.firebasestorage.app",
+  messagingSenderId: "520882963925",
+  appId: "1:520882963925:web:495843322049a46eeda95c",
+  measurementId: "G-CTQ9CLQ34K",
 };
 
 const app = initializeApp(firebaseConfig);
