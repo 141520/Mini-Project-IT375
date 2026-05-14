@@ -99,6 +99,11 @@ document.querySelectorAll('.suggestion').forEach(b => {
   });
 });
 
+// ── Draft: บันทึกข้อความที่พิมพ์ค้างไว้ (IndexedDB) ──
+const inputEl = document.getElementById('questionInput');
+window.Draft && window.Draft.load(GAME_ID).then(t => { if (t && !inputEl.value) inputEl.value = t; });
+inputEl.addEventListener('input', () => window.Draft && window.Draft.save(GAME_ID, inputEl.value));
+
 document.getElementById('chatForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const input = document.getElementById('questionInput');
@@ -109,8 +114,17 @@ document.getElementById('chatForm').addEventListener('submit', async (e) => {
 
   addBubble('user', q);
   input.value = '';
+  window.Draft && window.Draft.save(GAME_ID, '');
   const btn = document.getElementById('sendBtn');
   btn.disabled = true; btn.innerHTML = '<span class="animate-spin">⏳</span>';
+
+  // ── AI Cache: เช็คว่าเคยถามคำถามนี้ไหม ──
+  const cached = window.AICache && await window.AICache.get(GAME_ID, q);
+  if (cached) {
+    addBubble('assistant', '⚡ (จากแคช) ' + cached.answer, cached.citations || []);
+    btn.disabled = false; btn.innerHTML = '<span>🎲</span><span>ส่ง</span>';
+    return;
+  }
 
   const loading = document.createElement('div');
   loading.className = 'flex justify-start';
@@ -136,6 +150,8 @@ document.getElementById('chatForm').addEventListener('submit', async (e) => {
     if (!res.ok) { addBubble('assistant', '❌ ' + (data.detail || 'Error')); return; }
     convId = data.conversation_id;
     addBubble('assistant', data.answer, data.citations || [], data.message_id);
+    // เก็บลง cache เผื่อถามซ้ำ
+    window.AICache && window.AICache.set(GAME_ID, q, data.answer, data.citations || []);
   } catch (err) {
     loading.remove();
     addBubble('assistant', '❌ ' + err.message);

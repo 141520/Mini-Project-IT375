@@ -32,6 +32,13 @@ try:
 except Exception as e:
     print(f"[migrate] skipped: {e}")
 
+# Create game_pdfs table if not exists
+try:
+    from models import GamePDF
+    GamePDF.__table__.create(bind=engine, checkfirst=True)
+except Exception as e:
+    print(f"[migrate] game_pdfs: {e}")
+
 # Ensure upload dir exists
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
@@ -65,6 +72,20 @@ def health():
 @app.get("/favicon.ico")
 def favicon():
     return Response(status_code=204)
+
+
+@app.get("/sw.js")
+def service_worker():
+    """Serve Service Worker จาก root เพื่อให้ scope ครอบคลุมทั้งเว็บ"""
+    with open("static/sw.js", "rb") as f:
+        return Response(content=f.read(), media_type="application/javascript",
+                        headers={"Service-Worker-Allowed": "/"})
+
+
+@app.get("/manifest.json")
+def manifest():
+    with open("static/manifest.json", "rb") as f:
+        return Response(content=f.read(), media_type="application/manifest+json")
 
 
 @app.exception_handler(Exception)
