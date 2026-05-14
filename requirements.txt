@@ -15,4 +15,3 @@ numpy
 httpx
 pytest
 pytest-asyncio
-firebase-admin
