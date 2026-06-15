@@ -1,7 +1,7 @@
 """PDF text extraction (text-based + OCR fallback) and chunking for RAG."""
 from typing import List, Dict
 import re
-
+ 
 try:
     import fitz  # PyMuPDF
 except ImportError:
@@ -11,7 +11,7 @@ except ImportError:
 def _ocr_page(page) -> str:
     """OCR a single PyMuPDF page using pytesseract as fallback (low DPI to save RAM)."""
     try:
-        import pytesseract
+        import pytesseract 
         from PIL import Image
         import io
         pix = page.get_pixmap(dpi=72)  # very low DPI = minimal RAM
@@ -41,15 +41,15 @@ def extract_pages(pdf_path: str) -> List[Dict]:
                 ocr_used = True
         if text.strip():
             pages.append({"page": i, "text": text})
-    doc.close()
+    doc.close()  
     if ocr_used:
         print(f"[pdf_parser] OCR was used for some pages in {pdf_path}")
     return pages
 
 
 def _clean(text: str) -> str:
-    text = re.sub(r"\s+\n", "\n", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
+    text = re.sub(r"[ \t]+\n", "\n", text)   # strip trailing spaces/tabs per line
+    text = re.sub(r"\n{3,}", "\n\n", text)   # collapse 3+ blank lines to paragraph break
     return text.strip()
 
 

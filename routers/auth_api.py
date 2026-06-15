@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from config import settings
@@ -50,6 +51,8 @@ def register(data: UserRegister, response: Response, db: Session = Depends(get_d
 @router.post("/login", response_model=Token)
 def login(data: UserLogin, response: Response, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == data.username).first()
+    if user and user.password_hash == "firebase":
+        raise HTTPException(status_code=401, detail="Account uses Google Sign-In, please login with Google")
     if not user or not verify_password(data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not user.is_active:
@@ -82,6 +85,11 @@ def firebase_login(payload: FirebaseLogin, response: Response, db: Session = Dep
         raise HTTPException(status_code=400, detail="Token ไม่มี email")
 
     user = db.query(User).filter(User.email == email).first()
+    if user and user.password_hash != "firebase":
+        raise HTTPException(
+            status_code=409,
+            detail="Email นี้ลงทะเบียนด้วยรหัสผ่านแล้ว กรุณา login ปกติ",
+        )
     if not user:
         # สร้าง username ที่ไม่ซ้ำ
         base = name.replace(" ", "_").lower()[:40] or "user"
@@ -90,16 +98,22 @@ def firebase_login(payload: FirebaseLogin, response: Response, db: Session = Dep
         while db.query(User).filter(User.username == username).first():
             i += 1
             username = f"{base}{i}"
-        user = User(
-            username=username,
-            email=email,
-            password_hash="firebase",  # ไม่ใช้รหัสผ่าน
-            role="user",
-            is_active=True,
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
+        try:
+            user = User(
+                username=username,
+                email=email,
+                password_hash="firebase",  # ไม่ใช้รหัสผ่าน
+                role="user",
+                is_active=True,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        except IntegrityError:
+            db.rollback()
+            user = db.query(User).filter(User.email == email).first()
+            if not user:
+                raise HTTPException(status_code=500, detail="Account creation failed")
 
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account disabled")

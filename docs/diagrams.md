@@ -1,7 +1,7 @@
 # BoardGame AI — Diagrams
 
 ## วิธีดู
-- **UseCase / Architecture (Mermaid):** วางโค้ดใน [mermaid.live](https://mermaid.live)
+- **UseCase / Architecture / ER (Mermaid):** วางโค้ดใน [mermaid.live](https://mermaid.live)
 - **UseCase (PlantUML):** วางโค้ดใน [plantuml.com/plantuml](https://www.plantuml.com/plantuml/uml/)
 
 ---
@@ -25,7 +25,7 @@ left to right direction
 
 actor "👤 User" as User
 actor "🔧 Admin" as Admin
-actor "🤖 Gemini AI" as AI <<external>>
+actor "🤖 Groq AI" as AI <<external>>
 
 rectangle "BoardGame AI System" {
 
@@ -37,27 +37,21 @@ rectangle "BoardGame AI System" {
 
   package "Board Game" {
     usecase "ดูรายการบอร์ดเกม" as UC_ListGames
-    usecase "ค้นหาบอร์ดเกม" as UC_SearchGames
-    usecase "กรองตามหมวด" as UC_FilterCat
-    usecase "ปักหมุดเกมโปรด" as UC_Favorite
+    usecase "ค้นหา/กรองตามหมวด" as UC_SearchGames
   }
 
   package "Chat & RAG" {
     usecase "ถามคำถามกติกา" as UC_Ask
-    usecase "ถามข้ามทุกเกม" as UC_MultiAsk
     usecase "ดูประวัติแชท" as UC_History
     usecase "ปักหมุดแชท" as UC_PinChat
     usecase "ลบประวัติแชท" as UC_DeleteChat
-    usecase "ให้คะแนนคำตอบ" as UC_Rate
-    usecase "คัดลอกคำตอบ" as UC_Copy
   }
 
   package "Admin Management" {
     usecase "เพิ่มบอร์ดเกม + PDF" as UC_AddGame
     usecase "Index PDF (RAG)" as UC_IndexPDF
     usecase "ลบบอร์ดเกม" as UC_DeleteGame
-    usecase "จัดการผู้ใช้" as UC_ManageUser
-    usecase "ดูสถิติระบบ" as UC_Stats
+    usecase "จัดการผู้ใช้ (Toggle/ลบ)" as UC_ManageUser
   }
 
 }
@@ -68,35 +62,34 @@ User --> UC_Login
 User --> UC_Logout
 User --> UC_ListGames
 User --> UC_SearchGames
-User --> UC_FilterCat
-User --> UC_Favorite
 User --> UC_Ask
-User --> UC_MultiAsk
 User --> UC_History
 User --> UC_PinChat
 User --> UC_DeleteChat
-User --> UC_Rate
-User --> UC_Copy
 
-' Admin flows (inherits User)
+' Admin inherits User
 Admin --|> User
 Admin --> UC_AddGame
 Admin --> UC_IndexPDF
 Admin --> UC_DeleteGame
 Admin --> UC_ManageUser
-Admin --> UC_Stats
 
 ' AI external
 UC_Ask ..> AI : <<uses>>
-UC_MultiAsk ..> AI : <<uses>>
-UC_IndexPDF ..> AI : <<translates query>>
+UC_Ask ..> AI : <<translates TH→EN>>
 
 ' Include
 UC_Ask ..> UC_Login : <<include>>
-UC_MultiAsk ..> UC_Login : <<include>>
 
 @enduml
 ```
+
+> **การเปลี่ยนแปลงจาก diagram เดิม:**
+> - เปลี่ยน `Gemini AI` → `Groq AI` (ใช้ LLaMA 3.1 8B Instant)
+> - ลบ `คัดลอกคำตอบ` (ถูกตัดออกจากระบบ)
+> - ลบ `ปักหมุดเกมโปรด` (ระบบ Favorite ถูกตัดออก — คงไว้แค่ปักหมุดแชท)
+> - เพิ่ม `ค้นหา/กรองตามหมวด` (category filter)
+> - อัปเดต `จัดการผู้ใช้` ให้ครอบคลุม Toggle + ลบ user
 
 ---
 
@@ -110,34 +103,34 @@ graph TB
 
     subgraph CLOUD["☁️ Render Cloud (mini-project-it375.onrender.com)"]
         subgraph WEB["🖥️ Presentation Layer"]
-            Jinja["Jinja2 Templates\n(HTML Pages)"]
-            Static["Static Files\nCSS / JS / Uploads"]
+            Jinja["Jinja2 Templates<br/>(HTML Pages)"]
+            Static["Static Files<br/>CSS / JS / Uploads"]
         end
 
         subgraph API["⚡ FastAPI Application"]
-            AuthAPI["🔐 /api/v1/auth\nRegister · Login · JWT"]
-            GamesAPI["🎲 /api/v1/games\nList · Search · Favorite"]
-            ChatAPI["💬 /api/v1/chat\nAsk · History · Rate · Pin"]
-            AdminAPI["⚙️ /api/v1/admin\nGames · Users · Stats"]
+            AuthAPI["🔐 /api/v1/auth<br/>Register · Login · JWT"]
+            GamesAPI["🎲 /api/v1/games<br/>List · Search"]
+            ChatAPI["💬 /api/v1/chat<br/>Ask · History · Pin · Delete"]
+            AdminAPI["⚙️ /api/v1/admin<br/>Games · Users · Stats"]
         end
 
         subgraph SERVICE["🧠 Business Logic Layer"]
-            RAG["rag_service.py\nPrompt + Answer"]
-            PDF["pdf_parser.py\nExtract + Chunk"]
-            VS["vector_store.py\nTF-IDF Search"]
-            Auth["auth.py\nJWT + bcrypt"]
+            RAG["rag_service.py<br/>Prompt + Answer"]
+            PDF["pdf_parser.py<br/>Extract + OCR + Chunk"]
+            VS["vector_store.py<br/>TF-IDF Search"]
+            Auth["auth.py<br/>JWT + bcrypt"]
         end
 
         subgraph DATA["🗄️ Data Layer"]
-            SQLite[("SQLite DB\nboardgame.sqlite3")]
-            Pickle[("TF-IDF Index\n*.pkl files")]
-            Files["PDF + Image\nUploads /data"]
+            SQLite[("SQLite DB<br/>boardgame.sqlite3")]
+            Pickle[("TF-IDF Index<br/>*.pkl files")]
+            Files["PDF + Image<br/>static/uploads/"]
         end
     end
 
     subgraph EXTERNAL["🔌 External Services"]
-        Gemini["Google Gemini API\ngemini-1.5-flash\n(Generate Answer + Translate)"]
-        GitHub["GitHub\ngithub.com/141520/\nMini-Project-IT375"]
+        Groq["Groq API<br/>llama-3.1-8b-instant<br/>(Generate Answer + Translate)"]
+        GitHub["GitHub<br/>github.com/141520/<br/>Mini-Project-IT375"]
     end
 
     Browser -->|"HTTPS Request"| Jinja
@@ -153,8 +146,8 @@ graph TB
     AdminAPI --> PDF
     AdminAPI --> SQLite
 
-    RAG -->|"translate TH→EN"| Gemini
-    RAG -->|"generate answer"| Gemini
+    RAG -->|"translate TH→EN"| Groq
+    RAG -->|"generate answer"| Groq
     RAG --> VS
     PDF --> VS
     VS --> Pickle
@@ -216,20 +209,14 @@ erDiagram
         string role
         text content
         text citations
-        int rating
-        datetime created_at
-    }
-
-    FAVORITE {
-        int id PK
-        int user_id FK
-        int game_id FK
         datetime created_at
     }
 
     USER ||--o{ CONVERSATION : "has"
-    USER ||--o{ FAVORITE : "saves"
     BOARD_GAME ||--o{ CONVERSATION : "used in"
-    BOARD_GAME ||--o{ FAVORITE : "saved by"
     CONVERSATION ||--o{ MESSAGE : "contains"
 ```
+
+> **การเปลี่ยนแปลงจาก ER เดิม:**
+> - ลบตาราง `FAVORITE` (ระบบ favorite ถูกตัดออก)
+> - ลบ field `rating` ใน MESSAGE (ระบบ 👍👎 ถูกตัดออก)

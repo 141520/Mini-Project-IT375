@@ -71,10 +71,10 @@ def get_optional_user(
     if not token:
         return None
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        payload = decode_token(token)
         user = db.query(User).filter(User.username == payload.get("sub")).first()
         print(f"[get_optional_user] sub={payload.get('sub')} user={user.username if user else None}")
         return user
-    except Exception as e:
+    except (HTTPException, Exception) as e:
         print(f"[get_optional_user] decode error: {type(e).__name__}: {e}")
         return None

@@ -2,9 +2,11 @@
 ใช้ Google Public Keys verify JWT โดยตรง (pyjwt + httpx)
 """
 import time
+from datetime import timedelta
 from typing import Optional
 import httpx
 import jwt
+from cryptography import x509
 
 # Google Public Keys สำหรับ Firebase ID tokens
 _CERTS_URL = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
@@ -36,7 +38,10 @@ def _get_google_certs() -> dict:
         _certs_expiry = time.time() + max_age
         print(f"[firebase] certs fetched, cache {max_age}s")
     except Exception as e:
-        print(f"[firebase] fetch certs error: {e}")
+        if _certs_cache:
+            print(f"[firebase] fetch certs error (using stale cache): {e}")
+        else:
+            print(f"[firebase] fetch certs error (no cache): {e}")
     return _certs_cache
 
 
@@ -45,9 +50,6 @@ def verify_id_token(id_token: str) -> Optional[dict]:
     Returns decoded claims dict หรือ None ถ้าไม่ valid
     """
     try:
-        from cryptography import x509
-        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-
         certs = _get_google_certs()
         if not certs:
             print("[firebase] no certs available")
@@ -56,30 +58,30 @@ def verify_id_token(id_token: str) -> Optional[dict]:
         # ถอด header เพื่อเอา kid
         header = jwt.get_unverified_header(id_token)
         kid = header.get("kid")
+        if not kid:
+            print("[firebase] token missing kid header")
+            return None
         if kid not in certs:
             print(f"[firebase] kid '{kid}' not found in certs, available: {list(certs.keys())}")
             return None
 
-        # แปลง X.509 PEM cert → RSA Public Key
-        pem_cert = certs[kid].encode("utf-8")
-        cert = x509.load_pem_x509_certificate(pem_cert)
-        public_key = cert.public_key().public_bytes(
-            encoding=Encoding.PEM,
-            format=PublicFormat.SubjectPublicKeyInfo,
-        )
+        # แปลง X.509 PEM cert → RSA Public Key (pass key object directly, no PEM round-trip)
+        cert = x509.load_pem_x509_certificate(certs[kid].encode("utf-8"))
+        public_key = cert.public_key()
 
+        expected_iss = f"https://securetoken.google.com/{_FIREBASE_PROJECT_ID}"
         decoded = jwt.decode(
             id_token,
             public_key,
             algorithms=["RS256"],
             audience=_FIREBASE_PROJECT_ID,
+            issuer=expected_iss,
+            leeway=timedelta(seconds=10),
             options={"verify_exp": True},
         )
 
-        # ตรวจ issuer
-        expected_iss = f"https://securetoken.google.com/{_FIREBASE_PROJECT_ID}"
-        if decoded.get("iss") != expected_iss:
-            print(f"[firebase] invalid iss: {decoded.get('iss')}")
+        if not decoded.get("email_verified"):
+            print("[firebase] email not verified")
             return None
 
         print(f"[firebase] token OK: {decoded.get('email')}")
